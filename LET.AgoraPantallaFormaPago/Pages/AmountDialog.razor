@@ -1,0 +1,166 @@
+﻿@using LET.AgoraPantallaFormaPago.Models
+@using Microsoft.AspNetCore.Components.Web
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="paymentAmountString"
+                      Label="Monto"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Text"
+                      Immediate="true"
+                      Class="mb-4"
+                      OnKeyDown="HandleKeyPress"
+                      Error="@(!isValidNumber && !string.IsNullOrEmpty(paymentAmountString))"
+                      ErrorText="Por favor ingrese un monto válido"
+                      @ref="paymentAmountTextField"  />
+
+        <MudGrid>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('7'))">7</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('8'))">8</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('9'))">9</MudButton>
+            </MudItem>
+
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('4'))">4</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('5'))">5</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('6'))">6</MudButton>
+            </MudItem>
+
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('1'))">1</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('2'))">2</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('3'))">3</MudButton>
+            </MudItem>
+
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('0'))">0</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('.'))">.</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Error" FullWidth="true" Style="height: 55px" OnClick="ClearAmount">C</MudButton>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Style="height: 55px" OnClick="Cancel">Cancelar</MudButton>
+        @* <MudButton Variant="Variant.Filled" Style="height: 55px" Color="Color.Primary" OnClick="Submit" Disabled="@(paymentAmount <= 0)">Aceptar</MudButton> *@
+        <MudButton Variant="Variant.Filled" Style="height: 55px" Color="Color.Primary" OnClick="Submit" Disabled="@(string.IsNullOrEmpty(paymentAmountString))">Aceptar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public string PaymentMethodName { get; set; }
+    [Parameter] public string TotalAmount { get; set; } // Add this parameter
+    [Parameter] public string? remainingAmount { get; set; }
+    // [Parameter] public decimal MaxAmount { get; set; }
+    // [Parameter] public bool AllowOverPayment { get; set; } = true;
+
+
+    private decimal amount;
+
+    private string paymentAmountString = "";
+    private decimal paymentAmount = 0;
+    private bool isValidNumber = true;
+    private MudTextField<string> paymentAmountTextField;
+
+    private void AppendNumber(char number)
+    {
+       //if (number == '.' && paymentAmountString.Contains('.')) return;
+        paymentAmountString += number;
+        ValidateNumber();
+        //decimal.TryParse(paymentAmountString, out paymentAmount);
+    }
+
+    private void ValidateNumber()
+    {
+        // Check if the current string is a valid decimal number
+        isValidNumber = decimal.TryParse(paymentAmountString, out _);
+
+        // Special case: allow single "." to be entered (will become "0.")
+        if (!isValidNumber && paymentAmountString == ".")
+        {
+            isValidNumber = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Focus the MudTextField when the component is first rendered
+            await Task.Delay(50);
+
+            if (paymentAmountTextField != null)
+            {
+                await paymentAmountTextField.FocusAsync();
+            }
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        // Set initial value if provided
+        if (!string.IsNullOrEmpty(remainingAmount))
+        {
+            paymentAmountString = remainingAmount;
+            ValidateNumber();
+        }
+    }
+
+    private void ClearAmount()
+    {
+        paymentAmountString = "";
+        isValidNumber = true;
+        //paymentAmount = 0;
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && paymentAmount > 0)
+        {
+            Submit();
+        }
+        else if (e.Key == "Escape")
+        {
+            Cancel();
+        }
+    }
+
+
+
+    //private void Submit()  => MudDialog.Close(DialogResult.Ok(paymentAmount));
+
+    private void Submit()
+    {
+        ValidateNumber();
+        if (!isValidNumber) return;
+
+        // Ensure proper decimal format (e.g., convert ".5" to "0.5")
+        // if (paymentAmountString.StartsWith("."))
+        // {
+        //     paymentAmountString = "0" + paymentAmountString;
+        // }
+
+        //decimal.TryParse(paymentAmountString, out paymentAmount);
+        MudDialog.Close(DialogResult.Ok(paymentAmountString));
+    }
+
+
+    private void Cancel() => MudDialog.Cancel();
+}

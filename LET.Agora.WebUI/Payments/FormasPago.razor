@@ -1,0 +1,784 @@
+﻿@page "/"
+
+@inject INCFSecuenciaService NCFSecuenciaService
+@inject IFormaPagoService FormaPagoService
+@inject ITicketService TicketService
+@inject IRNCService RNCService
+@inject ICustomerService CustomerService
+@inject ISocketUrlService SocketUrlService;
+@inject SweetAlertService Swal;
+@inject AgoraInterop AgoraInterop
+@inject IFacturaService FacturaService
+
+<style>
+    .custom-button {
+    width: 50px;
+    height: 60px;
+    }
+</style>
+
+@if (comprobantes != null)
+{
+
+
+    <MudContainer MaxWidth="MaxWidth.Medium">
+        <MudGrid Class="mt-4">
+            <MudItem sm="8">
+                <!-- Payment Methods as Horizontal Buttons -->
+                <MudCard Elevation="4" Class="py-1 mb-1">
+
+                    <!-- Primer MudCard -->
+
+                    <MudCardContent>
+                        <MudText Typo="Typo.body1" Class="mb-2">FORMAS DE PAGO</MudText>
+                        <MudGrid>
+                            <MudItem xs="12">
+                                <div class="d-flex flex-wrap gap-2">
+                                    @if (formapagos?.Data?.PaymentMethods != null)
+                                    {
+                                        @foreach (var fpago in formapagos.Data.PaymentMethods)
+                                        {
+                                            <MudButton OnClick="() => SelectPaymentMethod(fpago)"
+                                            Color="SelectedPaymentMethod?.Id == fpago.Id ? Color.Primary : Color.Default"
+                                            Variant="Variant.Filled"
+                                            Class="mb-2">
+                                                @fpago.Name
+                                            </MudButton>
+                                        }
+                                    }
+                                </div>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+
+                <MudItem xs="12" sm="8">
+                    <MudPaper Elevation="0" Class="d-flex justify-center align-center py-4 mb-4" Style="@($"color:white; background:{Colors.Indigo.Darken1};")">
+                        <MudText Typo="Typo.body1" Class="mx-2">PENDIENTE: @Pendiente.ToString("0.00")</MudText>
+                        <MudText Typo="Typo.body1" Class="mx-2">TOTAL: @Total.ToString("0.00")</MudText>
+                        <MudText Typo="Typo.body1" Class="mx-2">ENTREGADO: @PagoEntregado.ToString("0.00")</MudText>
+                        <MudText Typo="Typo.body1" Class="mx-2">CAMBIO: @Cambio.ToString("0.00")</MudText>
+                    </MudPaper>
+                    <MudItem>
+                        @if (!ValidateNumpadInput() && !string.IsNullOrEmpty(NumpadInput))
+                        {
+                            <MudAlert Severity="Severity.Error" Class="mt-2">
+                                Introduzca un monto valido (e.j., 100.00).
+                            </MudAlert>
+                        }
+                        <!-- Input Field and Agregar Button -->
+                        <div class="d-flex align-center gap-2">
+
+                            <MudTextField @bind-Value="NumpadInput"
+                            Label="ENTREGADO"
+                            Variant="Variant.Outlined"
+                            Class="flex-grow-1"
+                            @onfocus="() => SetFocusedField(nameof(NumpadInput))"
+                            For="@(() => NumpadInput)"
+                            Validation="@(() => ValidateNumpadInput())"
+                            ErrorText="Please enter a valid amount (e.g., 100.00)">
+                            </MudTextField>
+                            <MudButton OnClick="AgregarPago" Disabled=@deshabilitarBotonAgregar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large">
+                                Agregar
+                            </MudButton>
+
+                        </div>
+                    </MudItem>
+                    <MudTable Items="@Payments" Hover="true" Dense="true" Class="mb-4">
+                        <HeaderContent>
+                            <MudTh>Forma de Pago</MudTh>
+                            <MudTh>Monto</MudTh>
+                            <MudTh>Eliminar</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Id">@context.PaymentMethodName</MudTd>
+                            <MudTd DataLabel="Forma de Pago">@context.PayAmount.ToString("C")</MudTd>
+                            <MudTd DataLabel="Eliminar">
+                                <MudButton OnClick="() => RemovePayment(context)" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small">
+                                    Eliminar
+                                </MudButton>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudItem>
+                @*                 <MudGrid>
+
+                </MudGrid> *@
+            </MudItem>
+
+
+            <MudItem xs="12" sm="4" style="align-self: flex-start;">
+                <!-- Teclado numérico -->
+                <div class="d-flex flex-column gap-2" style="width: fit-content;">
+                    <!-- First Row: 7 8 9 -->
+                    <div class="d-flex gap-2">
+                        <MudButton OnClick="() => AddNumber('7')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            7
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('8')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            8
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('9')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            9
+                        </MudButton>
+                    </div>
+                    <!-- Second Row: 4 5 6 -->
+                    <div class="d-flex gap-2">
+                        <MudButton OnClick="() => AddNumber('4')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            4
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('5')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            5
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('6')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            6
+                        </MudButton>
+                    </div>
+                    <!-- Third Row: 1 2 3 -->
+                    <div class="d-flex gap-2">
+                        <MudButton OnClick="() => AddNumber('1')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            1
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('2')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            2
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('3')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            3
+                        </MudButton>
+                    </div>
+                    <!-- Fourth Row: 0 . (and optional Clear/Backspace) -->
+                    <div class="d-flex gap-2">
+                        <MudButton OnClick="() => AddNumber('0')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            0
+                        </MudButton>
+                        <MudButton OnClick="() => AddNumber('.')" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Class="custom-button">
+                            .
+                        </MudButton>
+                        <MudButton OnClick="ClearInput" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="custom-button">
+                            Limpiar
+                        </MudButton>
+                    </div>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Style="height: 67px; width: 210px;" @onclick="EnviarFormasDePago" Disabled=@deshabilarBotonPagos>
+                        COBRAR
+                    </MudButton>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Numpad Section -->
+        <MudGrid Class="mt-4">
+
+            <!-- Table Section -->
+
+
+            <MudItem xs="12">
+                <!-- Card de comprobante fiscal y RNC -->
+                <MudCard Elevation="4" Width="600px">
+                    <MudCardContent>
+                        <MudSelect T="NCFSecuencia" Label="SELECCIONE EL TIPO DE COMPROBANTE FISCAL" Variant="Variant.Outlined" @bind-Value="SelectedNCFSecuencia">
+                            @foreach (var tipocomprobante in comprobantes.Data)
+                            {
+                                <MudSelectItem Value="tipocomprobante">@tipocomprobante.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudTextField @bind-Value="RNCValue" Label="DIGITE EL RNC" Variant="Variant.Outlined" Class="flex-grow-1" @onfocus="() => SetFocusedField(nameof(RNCValue))" />
+
+                        @if (rncDgii?.Data != null)
+                        {
+                            <MudTextField @bind-Value="rncDgii.Data.RazonSocial" Label="RNC" Variant="Variant.Outlined" ReadOnly="true" />
+                        }
+                        <MudButton Class="mt-5" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large" @onclick="() => BuscarRNC(RNCValue)">
+                            BUSCAR RNC
+                        </MudButton>
+                    </MudCardContent>
+                    <MudCardContent Class="py-1 mb-1" Style="@($"color:white; background:{Colors.Indigo.Darken1};")">
+                        <MudGrid>
+                            <MudItem xs="12">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <MudText>CODIGO CLIENTE: @CodigoCliente</MudText>
+                                    <MudText>NOMBRE: @NombreEmpleado</MudText>
+
+                                </div>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+                @* <MudCard Elevation="4" Class="py-1 mb-1" Style="@($"color:white; background:{Colors.Indigo.Darken1};")">
+
+                    <!-- Primer MudCard -->
+
+
+                </MudCard> *@
+            </MudItem>
+
+            @*             <MudGrid Class="mt-4">
+                <!-- Payment Methods as Horizontal Buttons -->
+
+
+            </MudGrid> *@
+        </MudGrid>
+
+    </MudContainer>
+}
+
+@code {
+
+    ServiceResponse<IEnumerable<NCFSecuencia>>? comprobantes;
+    ServiceResponse<PaymentMethodContainer>? formapagos;
+    ServiceResponse<TicketAbiertoContainer>? ticketsabiertos;
+    ServiceResponse<RNCDGII> rncDgii { get; set; } = new();
+    private decimal Pendiente = 0.00m, Total = 0.00m, PagoEntregado = 0.00m, Cambio = 0.00m;
+    private string CodigoCliente = "", NombreEmpleado = "";
+    private PaymentMethod? SelectedPaymentMethod { get; set; }
+    private NCFSecuencia? SelectedNCFSecuencia { get; set; }
+    private string? NombreComercial;
+    private string? RncContribuyente;
+    private bool deshabilarBotonPagos = true, deshabilitarBotonAgregar = true;
+    private ClientSocketConnection? socketClient;
+    private ClientWebSocket clientWebSocket = new ClientWebSocket();
+    private Uri serverUri;
+
+    private string? _focusedField; // Tracks which field is focused
+
+    private void SelectPaymentMethod(PaymentMethod paymentMethod)
+    {
+        SelectedPaymentMethod = paymentMethod;
+    }
+
+    // Method to set the focused field
+    private void SetFocusedField(string fieldName)
+    {
+        _focusedField = fieldName;
+    }
+
+    private bool ValidateNumpadInput()
+    {
+        // Check if the input is a valid decimal number
+        if (decimal.TryParse(NumpadInput, NumberStyles.Currency, CultureInfo.InvariantCulture, out decimal amount))
+        {
+            // Ensure the amount is positive
+            return amount > 0;
+        }
+        return false;
+    }
+
+    private async Task BuscarRNC(string rncContribuyente)
+    {
+        rncDgii = await RNCService.ObtenerRNC(rncContribuyente);
+
+        // Ensure rncDgii.Data is initialized
+        if (rncDgii.Data == null)
+        {
+            await Swal.FireAsync("INFORMACION", "RNC NO EXISTE O DEBE DE CREARLO", "warning");
+            return;
+            //rncDgii.Data = new RNCDGII();
+        }
+    }
+
+
+
+    public string RNCValue { get; set; } = "";
+    private List<Payment> Payments = new List<Payment>();
+    private string NumpadInput { get; set; } = "";
+
+    // Method to handle button clicks and update the NumpadInput
+    private void AddNumber(char number)
+    {
+        if (_focusedField == nameof(RNCValue))
+        {
+            RNCValue += number;
+        }
+        else if (_focusedField == nameof(NumpadInput))
+        {
+            NumpadInput += number;
+        }
+    }
+
+    // Method to clear the input
+    private void ClearInput()
+    {
+        if (_focusedField == nameof(RNCValue))
+        {
+            RNCValue = "";
+        }
+        else if (_focusedField == nameof(NumpadInput))
+        {
+            NumpadInput = "";
+        }
+    }
+
+
+    // Method to remove a payment
+    private void RemovePayment(Payment payment)
+    {
+
+        Payments.Remove(payment);
+        CalcularTotales();
+        ResetearBotones();
+    }
+
+    private void ResetearBotones() 
+    {
+        if (Payments.Count == 0)
+        {
+            deshabilitarBotonAgregar = false;
+            deshabilarBotonPagos = false;            
+        }
+    }
+
+    private void CalcularTotales()
+    {
+        // Reset values
+        PagoEntregado = 0;
+        Cambio = 0;
+        Pendiente = Total;
+
+        // Recalculate everything from scratch
+        foreach (var payment in Payments)
+        {
+            PagoEntregado += payment.PayAmount;
+        }
+
+        // Calculate change ONLY if the total payment exceeds the total amount
+        if (SelectedPaymentMethod?.GiveChange == true && SelectedPaymentMethod?.AllowOverPaid == true)
+        {
+            if (PagoEntregado > Total)
+            {
+                Cambio = PagoEntregado - Total;
+            }
+        }
+
+        // Calculate pending amount
+        Pendiente = Total - (PagoEntregado - Cambio);
+        if (Pendiente < 0) Pendiente = 0;
+    }
+
+    private void AgregarPago()
+    {
+        decimal montoEntregado = 0;
+
+        if (SelectedPaymentMethod == null)
+        {
+            Swal.FireAsync("INFORMACION", "DEBE SELECCIONAR UNA FORMA DE PAGO", "warning");
+            return;
+        }
+
+        if (!decimal.TryParse(NumpadInput, out decimal monto) || monto <= 0)
+        {
+            Swal.FireAsync("INFORMACION", "MONTO NO VÁLIDO", "warning");
+            return;
+        }
+
+        if (Pendiente == 0)
+        {
+            Swal.FireAsync("INFORMACION", "NO HACE FALTA AGREGAR MAS FORMAS DE PAGOS", "warning");
+            return;
+        }
+
+
+        if (decimal.TryParse(NumpadInput, out decimal montoDigitado))
+        {
+            montoEntregado = montoDigitado;
+        }
+
+
+        bool permiteCambio = SelectedPaymentMethod.GiveChange && SelectedPaymentMethod.AllowOverPaid;
+        bool nopermiteCambio = SelectedPaymentMethod.GiveChange == false && SelectedPaymentMethod.AllowOverPaid == false;
+
+        if (nopermiteCambio && montoEntregado > Pendiente)
+        {
+            Swal.FireAsync("INFORMACION", "NO SE PUEDE PAGAR UNA CANTIDAD SUPEROR AL TOTAL", "warning");
+            return;
+        } 
+
+        decimal cambio = 0;
+
+        if (permiteCambio && monto > Pendiente)
+        {
+            cambio = monto - Pendiente;
+        }
+
+        Payments.Add(new Payment
+            {
+                PaymentMethodId = SelectedPaymentMethod.Id,
+                PaymentMethodName = SelectedPaymentMethod.Name,
+                PayAmount = monto,
+                Amount = permiteCambio ? Math.Min(monto, Pendiente) : monto,
+                ChangeAmount = cambio,
+                Date = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.ff")
+            });
+
+        NumpadInput = "";
+
+        CalcularTotales(); // Reutilizamos el mismo método para consistencia
+        SelectedPaymentMethod = null;
+    }
+    // private void AgregarPago_bk()
+    // {
+
+    //     if (SelectedPaymentMethod == null)
+    //     {
+    //         Swal.FireAsync("INFORMACION", "DEBE SELECCIONAR UNA FORMA DE PAGO", "warning");
+
+    //         return;
+    //     }
+
+    //     if (Pendiente == 0)
+    //     {
+    //         Swal.FireAsync("INFORMACION", "NO HACE FALTA AGREGAR MAS FORMAS DE PAGOS", "warning");
+    //         return;
+    //     }
+
+
+    //     decimal montoTotal = 0;
+
+    //     // Parse the entered amount
+    //     decimal enteredAmount = decimal.Parse(NumpadInput, CultureInfo.InvariantCulture);
+
+    //     // Calculate total delivered amount
+    //     PagoEntregado = Payments.Sum(p => p.PayAmount) + enteredAmount;
+
+
+    //     // Calculate change if applicable
+    //     decimal cambio = 0;
+
+    //     if (SelectedPaymentMethod != null && SelectedPaymentMethod.GiveChange && SelectedPaymentMethod.AllowOverPaid)
+    //     {
+    //         if (PagoEntregado > Total)
+    //         {
+    //             cambio = PagoEntregado - Total;
+    //             Cambio = cambio;
+    //             Pendiente = 0; // No pending amount if overpaid
+    //         }
+    //     }
+    //     else if (SelectedPaymentMethod.GiveChange && SelectedPaymentMethod.AllowOverPaid)
+    //     {
+    //         if (PagoEntregado > Total)
+    //         {
+    //             //return; // Do not allow overpayment
+    //         }
+    //     }
+
+    //     montoTotal = PagoEntregado - cambio;
+    //     // If validations pass, add the payment to the grid
+    //     var payment = new Payment
+    //         {
+    //             PaymentMethodId = SelectedPaymentMethod.Id,
+    //             PaymentMethodName = SelectedPaymentMethod.Name,
+    //             PayAmount = Convert.ToDecimal(NumpadInput),
+    //             Amount = enteredAmount,
+    //             ChangeAmount = cambio
+    //         };
+
+    //     Payments.Add(payment);
+    //     NumpadInput = ""; // Clear the input
+
+    //     //RefreshPayment();
+    //     CalcularTotales();
+
+
+    // }
+
+    private bool TieneComprobanteSeleccionado()
+    {
+        return (SelectedNCFSecuencia == null) ? true : false;
+    }
+
+
+    private async Task<bool> EsCreditoFiscalTieneNombreRNC()
+    {
+        bool esValido = true;
+
+        if (SelectedNCFSecuencia!.Tipo == 31 ||
+        SelectedNCFSecuencia.Tipo == 44 ||
+        SelectedNCFSecuencia.Tipo == 45)
+        {
+            if (string.IsNullOrEmpty(RNCValue))
+            {
+                await Swal.FireAsync("INFORMACION", "RNC INVALIDO / POR FAVOR VERIFICAR", "warning");
+                esValido = false;
+                return esValido;
+            }
+
+            if (RNCValue.Length == 9)
+            {
+                if (Utlilidades.Utilidad.ValidaRNC(RNCValue))
+                {
+                    esValido = true;
+                }
+                else
+                {
+                    await Swal.FireAsync("INFORMACION", "RNC INVALIDO / POR FAVOR VERIFICAR", "warning");
+                    esValido = false;
+                }
+
+            }
+            else if (RNCValue.Length == 11)
+            {
+                if (Utlilidades.Utilidad.ValidarCedula(RNCValue))
+                {
+                    esValido = true;
+                }
+                else
+                {
+
+                }
+                esValido = true;
+            }
+            else
+            {
+                await Swal.FireAsync("INFORMACION", "RNC INVALIDO / POR FAVOR VERIFICAR", "warning");
+                esValido = false;
+            }
+        }
+
+        return esValido;
+
+        //return (SelectedNCFSecuencia.Tipo != 32 && string.IsNullOrEmpty(RNCValue));
+    }
+
+
+    private void RefreshPayment()
+    {
+        decimal cambio = 0;
+        decimal totalEntregado = Payments.Sum(p => p.PayAmount);
+
+        // Calculate pending amount
+        decimal totalPendiente = Total - totalEntregado;
+        if (totalPendiente < 0) totalPendiente = 0; // Avoid negative values
+
+        if (SelectedPaymentMethod != null && SelectedPaymentMethod.GiveChange && SelectedPaymentMethod.AllowOverPaid)
+        {
+
+            if (totalEntregado > Total)
+            {
+                cambio = totalEntregado - Total;
+                Cambio = cambio;
+                Pendiente = 0; // No pending amount if overpaid
+            } 
+            else if (totalEntregado == 0)
+            {
+                Cambio = 0;
+            }
+
+        }
+
+        // Update the properties
+        PagoEntregado = totalEntregado;
+        Pendiente = totalPendiente;
+    }
+
+
+    private async Task EnviarFormasDePago()
+    {
+        deshabilarBotonPagos = true;
+
+
+
+        if (PagoEntregado < Total)
+        {
+            await Swal.FireAsync("INFORMACION", "LA CANTIDAD PAGADA ES INFERIOR AL TOTAL", "warning");
+            deshabilarBotonPagos = false;
+            return;
+        }
+
+
+
+        if (Payments.Count <= 0)
+        {
+            await Swal.FireAsync("INFORMACION", "DEBE AGREGAR UNA FORMA DE PAGO", "warning");
+            deshabilarBotonPagos = false;
+            return;
+        }
+
+        if (TieneComprobanteSeleccionado())
+        {
+            await Swal.FireAsync("INFORMACION", "SELECCIONE EL TIPO DE COMPROBANTE FISCAL", "warning");
+            deshabilarBotonPagos = false;
+            return;
+        }
+
+        if (await EsCreditoFiscalTieneNombreRNC() == false)
+        {
+            //await Swal.FireAsync("INFORMACION", $"PARA COMPROBANTE FISCAL TIPO {SelectedNCFSecuencia.Tipo} REQUIERE RNC", "warning");
+            deshabilarBotonPagos = false;
+            return;
+        }
+
+
+        if (CodigoCliente.Length > 0)
+        {
+            var tieneCredito = await ValidacionLimiteDeCredito();
+
+            if (tieneCredito.Exito == false)
+            {
+                await Swal.FireAsync("INFORMACION", $"NO TIENE LIMITE DE CREDITO DISPONIBLE, SU LIMTE DE CREDITO ACTUAL ES DE {tieneCredito.Mensaje}", "warning");
+                deshabilarBotonPagos = false;
+                return;
+            }
+        }
+
+        if (ticketsabiertos?.Data?.Tickets?.Count() != 1)
+        {
+            // Mostrar un mensaje de error si no hay un ticket abierto
+            Console.WriteLine("No hay un ticket abierto válido.");
+            deshabilarBotonPagos = false;
+            return;
+        }
+
+        // Obtener el ticket abierto
+        var ticket = ticketsabiertos.Data.Tickets.First();
+
+        foreach (var payment in Payments)
+        {
+            // Crear el objeto AddPayment
+            var addPayment = new AddPayment
+                {
+                    TicketGlobalId = ticket.GlobalId, // GlobalId del ticket
+                    PosId = ticket.Pos?.Id ?? 0, // Id del POS (si no está disponible, se usa 0)
+                    UserId = ticket.User?.Id ?? 0, // Id del usuario (si no está disponible, se usa 0)
+                    Date = payment.Date, // Fecha del ticket
+                    PaymentMethodId = payment.PaymentMethodId, // Id de la forma de pago
+                    Amount = payment.Amount, // Monto del pago
+                    PaidAmount = payment.PayAmount, // Monto entregado
+                    ChangeAmount = payment.ChangeAmount, // Cambio
+                    TipAmount = 0.00m, // Propina (por defecto 0)
+                    KeepOpen = false, // Mantener el ticket abierto (por defecto false)
+                    ExtraInformation = "" // Información adicional (por defecto vacío)
+             };
+
+            // Enviar el pago al endpoint
+            var response = await FormaPagoService.RegistrarTicketPagos(addPayment);
+
+            // // Manejar la respuesta (opcional)
+            if (response.Exito)
+            {
+                if (response.Data != null)
+                {
+                    int tipoComprobante = SelectedNCFSecuencia.Tipo;
+                    var factura = await FacturaService.ObtenerFacturaAgora(response.Data, RNCValue, tipoComprobante);
+
+                    if (factura.Exito = true)
+                    {
+                        var registrarFactura = await FacturaService.RegistrarFacturaAgora(factura.Data);
+
+                        if (registrarFactura.Exito = true)
+                        {
+                            await ImprimirFacturaSocket(registrarFactura.Data);
+                            deshabilarBotonPagos = true;
+
+                            await CloseWindow();
+                        }
+                    }
+
+                    //Console.WriteLine($"Pago enviado exitosamente: {response.Data.Serie}");
+                }
+
+            }
+            else
+            {
+                //Console.WriteLine($"Error al enviar el pago: {response.Mensaje}");
+            }
+        }
+
+        deshabilarBotonPagos = true;
+    }
+
+    private async Task<ServiceResponse<bool>> ImprimirFacturaSocket(FacturaResponse factura)
+    {
+        var response = new ServiceResponse<bool>();
+
+        try
+        {
+
+            var cancellationToken = new CancellationToken();
+
+            var respuesta = await socketClient.SendAndReceiveAsync<bool>(factura, cancellationToken);
+
+            response = respuesta;
+
+        }
+        catch (Exception ex)
+        {
+            response.Exito = false;
+            response.Mensaje = $"{ex.Message}";
+
+        }
+
+        return response;
+    }
+
+    private async Task CloseWindow()
+    {
+        await AgoraInterop.CloseWindow("afterClose");
+    }
+
+    private async Task<ServiceResponse<bool>> ValidacionLimiteDeCredito()
+    {
+        var response = await CustomerService.ObtenerLimiteCredito(CodigoCliente, Total.ToString());
+        return response;
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await IniciarServicioImpresion();
+        comprobantes = await NCFSecuenciaService.ObtenerComprobanteFiscales();
+        formapagos = await FormaPagoService.ObtenerFormasDePagos();
+        ticketsabiertos = await TicketService.ObtenerTicketAbierto();
+
+
+        // Assign values from Totals
+        if (ticketsabiertos != null)
+        {
+
+            if (ticketsabiertos.Data.Tickets.Count() == 1)
+            {
+                // Get the GrossAmount from the first (and only) ticket
+                var ticket = ticketsabiertos.Data.Tickets.First();
+                Total = ticket.Totals?.GrossAmount ?? 0.00m;
+                Pendiente = Total; // Assuming Pendiente is the same as Total initially
+                deshabilitarBotonAgregar = false;
+                deshabilarBotonPagos = false;
+                if (ticket.Customer is not null)
+                {
+                    CodigoCliente = ticket.Customer.CustomerCode;
+                    NombreEmpleado = ticket.Customer.FiscalName;
+                }
+
+
+            }
+            else
+            {
+                // Handle the case where there is one or no ticket
+                Total = 0.00m;
+                Pendiente = 0.00m;
+            }
+
+            // Update Entregado and Cambio based on your logic
+            PagoEntregado = 0.00m; // Update based on your logic
+            Cambio = 0.00m; // Update based on your logic
+        }
+    }
+
+    private async Task IniciarServicioImpresion()
+    {
+        try
+        {
+            var socketUrl = SocketUrlService.ObtenerSocketUrl();
+            serverUri = new Uri($"ws://{socketUrl}/servicioimpresion");
+            socketClient = new ClientSocketConnection(clientWebSocket, serverUri);
+
+            var cancellationToken = new CancellationToken();
+
+            await socketClient.ConnectAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await Swal.FireAsync("Aviso", $"NO SE PUDO INICIAR EL SERVICIO DE IMPRESION {ex.Message}", "warning");
+
+        }
+
+    }
+}

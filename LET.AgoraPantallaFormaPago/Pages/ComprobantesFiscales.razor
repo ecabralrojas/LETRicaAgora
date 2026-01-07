@@ -1,0 +1,466 @@
+﻿@page "/ComprobantesFiscales"
+
+
+@inject SweetAlertService Swal;
+@inject PaymentStateContainer PaymentState
+@inject NavigationManager Navigation
+@inject ITicketService TicketService
+@inject IDialogService DialogService
+@inject AgoraInterop AgoraInterop
+@inject ISocketUrlService SocketUrlService;
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-2 d-flex flex-column align-center">
+    @if (comprobanteFiscales == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Class="mx-auto" />
+    }
+    else
+    {
+        <MudPaper Class="pa-8" Elevation="5" Style="width: 100%; max-width: 600px;">
+            <MudGrid Justify="Justify.Center">
+                <MudItem xs="12" Class="text-center mb-2">
+                    <MudPaper Class="pa-4" Elevation="0" Style="@($"color:white; background:{Colors.Indigo.Darken1};")">
+                        <MudText Typo="Typo.subtitle1">SELECCIONE COMPROBANTE FISCAL</MudText>
+                    </MudPaper>
+
+                    @if (selectedComprobante != null)
+                    {
+                        @if (selectedComprobante.TieneDisponible == 0)
+                        {
+                            <MudItem xs="12" Class="text-center mt-2">
+                                <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                                    <MudText Typo="Typo.body2" Style="color: red; font-weight: bold;">
+                                        @selectedComprobante.MensajeComprobantes
+                                    </MudText>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                        else if (selectedComprobante.TienenVencimiento == 0)
+                        {
+                            <MudItem xs="12" Class="text-center mt-2">
+                                <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                                    <MudText Typo="Typo.body2" Style="color: red; font-weight: bold;">
+                                        @selectedComprobante.AvisoVencimiento
+                                    </MudText>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                        else if (!string.IsNullOrEmpty(selectedComprobante?.AvisoComprobantes))
+                        {
+                            <MudItem xs="12" Class="text-center mt-2">
+                                <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                                    <MudText Typo="Typo.body2" Style="color: red; font-weight: bold;">
+                                        @selectedComprobante.AvisoComprobantes
+                                    </MudText>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    }  
+                    <!-- Add customer info display here -->
+                    @if (PaymentState.Ticket.Customer != null)
+                    {
+                        <MudItem xs="12" Class="text-center mt-1">
+                            <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                                <MudText Typo="Typo.subtitle1">CODIGO: <strong>@PaymentState.Ticket.Customer.CustomerCode</strong></MudText>
+                                <MudText Typo="Typo.subtitle1">NOMBRE: <strong>@PaymentState.Ticket.Customer.FiscalName</strong></MudText>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                    @if (selectedDescripcionComprobante != null)
+                    {
+                        //var data = selectedRncInfo as RncInfo;
+                        <MudItem xs="12" Class="text-center mt-2">
+                            <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                                <MudText>@selectedDescripcionComprobante</MudText>
+                                <MudText Typo="Typo.body1">
+                                    <strong> Tipo: </strong> @selectedTipoComprobante
+                                    @*                                     @if (PermiteSeleccion && rncInfo == null)
+                                    {
+                                        <strong> RNC: </strong> @rncInfo.Rnc
+                                        <strong> Nombre: </strong> @rncInfo.RazonSocial
+                                    } *@
+
+                                    @if (PermiteSeleccion && !string.IsNullOrEmpty(rncInfo.Rnc))
+                                    {
+                                        <strong> RNC: </strong> @rncInfo.Rnc
+                                        <strong> Nombre: </strong> @rncInfo.RazonSocial
+                                    }
+                                </MudText>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudItem>
+
+
+                <!-- Add the payment summary here -->
+                <MudItem xs="12" Class="text-center mb-6">
+                    <MudGrid>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">PENDIENTE:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@PaymentState.RemainingAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">TOTAL:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@PaymentState.TotalAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">ENTREGADO:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@PaymentState.PaidAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">CAMBIO:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@PaymentState.ChangeAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+
+                <MudItem xs="12" Class="text-center mb-2">
+                    <MudGrid>
+                        @foreach (var comprobantes in GetPaginatedReceipts())
+                        {
+                            <MudItem xs="12" Class="pa-2">
+                                <MudButton Variant="Variant.Filled"
+                                Color="Color.Primary"
+                                Size="Size.Large"
+                                FullWidth="true"
+                                Class="py-6 px-12"
+                                OnClick="@(() => SeleccionarComprobanteFiscal(comprobantes))">
+                                    @comprobantes.Descripcion 
+                                </MudButton>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudItem>
+
+                @if (totalPages > 1)
+                {
+                    <MudItem xs="12" Class="text-center mt-2">
+                        <MudGrid Justify="Justify.Center" Spacing="3">
+                            <MudItem>
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                                OnClick="PreviousPage"
+                                Disabled="@(currentPage == 1)" />
+                            </MudItem>
+                            <MudItem>
+                                <MudText>Página @currentPage de @totalPages</MudText>
+                            </MudItem>
+                            <MudItem>
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
+                                OnClick="NextPage"
+                                Disabled="@(currentPage == totalPages)" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                }
+                <!-- Add the Continue button here -->
+                <MudItem xs="12" Class="text-center mt-2">
+                    <MudButton Variant="Variant.Filled"
+                    Color="Color.Primary"
+                    Class="py-6 px-12"
+                    Disabled="@(selectedComprobante == null ||
+                         selectedComprobante.TieneDisponible == 0 ||
+                         selectedComprobante.TienenVencimiento == 0 || isProcessing)"
+                    OnClick="ProcesarFactura">
+
+                        PROCESAR FACTURA
+                    </MudButton>
+                </MudItem>
+
+
+
+            </MudGrid>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private IEnumerable<NCFSecuencia>? comprobanteFiscales;
+    private int currentPage = 1;
+    private const int itemsPerPage = 2;
+    private int totalPages = 1;
+    private object? selectedRncInfo { get; set; } 
+    private int selectedTipoComprobante;
+    private string? selectedDescripcionComprobante;
+    private string? numeroRnc;
+    private bool PermiteSeleccion;
+    private string? processingError;
+    private RncInfo? rncInfo { get; set; }
+    //private InvoiceRoot? invoiceResponse;
+    private TicketAgora? invoiceResponse;
+    private bool isProcessing = false;
+    private ClientSocketConnection? socketClient;
+    private ClientWebSocket clientWebSocket = new ClientWebSocket();
+    private Uri serverUri;
+    private NCFSecuencia? selectedComprobante;
+    private bool estaProcesandoFactura = true;
+
+    private async Task ProcesarFactura()
+    {
+        if (PaymentState.MappedPayments == null 
+            || !PaymentState.MappedPayments.Any())
+        {
+            await Swal.FireAsync("Informacion", "No hay pagos para procesar", "warning");
+            //processingError = "No hay pagos para procesar";
+            return;
+        }
+
+
+
+        isProcessing = true;
+        processingError = null;
+        StateHasChanged(); // Update UI to show processing state
+
+        try
+        {
+            // LIMITE DE CREDITO RICA
+
+            if (PaymentState.Ticket.Customer != null && !string.IsNullOrEmpty(PaymentState.Ticket.Customer.CustomerCode))
+            {
+                var limiteCreditoRespuesta = await TicketService.ObtenerLimiteCreditoCliente(
+               PaymentState.Ticket.Customer.CustomerCode,
+               PaymentState.TotalAmount);
+
+                if (!limiteCreditoRespuesta.Exito)
+                {
+                    await Swal.FireAsync("Informacion", limiteCreditoRespuesta.Mensaje, "warning");
+                    isProcessing = false;
+                    return;
+                }
+            }
+
+
+            var paymentData = PaymentState.MappedPayments.Select(p => new AddPayment
+            {
+                TicketGlobalId = p.TicketGlobalId,
+                PosId =   p.PosId,
+                UserId = p.UserId,
+                Date = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.ff"),
+                PaymentMethodId = p.PaymentMethodId,
+                Amount = p.Amount,
+                PaidAmount = p.PaidAmount,
+                ChangeAmount = p.ChangeAmount,
+                TipAmount = p.TipAmount,
+                KeepOpen = p.KeepOpen,
+                ExtraInformation = p.ExtraInformation
+            }).ToList();
+
+            foreach (var formapago in paymentData)
+            {
+
+                var response = await TicketService.RegistrarFormaPagoAgora(formapago);
+
+
+                if (response?.Exito == true)
+                {
+                    // Check if payment is complete (has Serie and Number)
+                    if (response.Data != null 
+                        && response.Data.Serie != null
+                        && response.Data.Number > 0)
+                    {
+
+                        int tipoComprobante = selectedTipoComprobante;
+                        var factura = await TicketService.ObtenerFacturaAgora(response.Data, rncInfo.Rnc, selectedTipoComprobante);
+
+                        if (factura.Exito)
+                        {
+                            var registrarFactura = await TicketService.RegistrarFacturaAgora(factura.Data);
+
+                            if (registrarFactura.Exito == true)
+                            {
+                                await ImprimirFacturaSocket(registrarFactura.Data);
+                                await CloseAgoraIframeWindow();
+                            } 
+                            else
+                            {
+                                await Swal.FireAsync("Aviso", $"ERROR AL REGISTRAR LA FACTURA {registrarFactura?.Mensaje}", "warning");
+                            }
+                        } 
+                    }
+                }
+                else
+                {
+                    await Swal.FireAsync("Aviso", $"ERROR AL PROCESAR PAGO {response?.Mensaje}", "warning");
+                    //processingError = response?.Mensaje ?? "Error al procesar el pago";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            //processingError = $"Error: {ex.Message}";
+            await Swal.FireAsync("Aviso", $"ERROR AL PROCESAR PAGO {ex.Message}", "warning");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+
+    }
+
+    private async Task<ServiceResponse<bool>> ImprimirFacturaSocket(FacturaResponse factura)
+    {
+        var response = new ServiceResponse<bool>();
+
+        try
+        {
+
+            var cancellationToken = new CancellationToken();
+
+            var respuesta = await socketClient.SendAndReceiveAsync<bool>(factura, cancellationToken);
+
+            response = respuesta;
+
+        }
+        catch (Exception ex)
+        {
+            response.Exito = false;
+            response.Mensaje = $"{ex.Message}";
+
+        }
+
+        return response;
+    }
+
+    private async Task CloseAgoraIframeWindow()
+    {
+        await AgoraInterop.CloseWindow("afterClose");
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        // Get the payments from state
+        var payments = PaymentState.MappedPayments;
+        if (payments == null || !payments.Any())
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        // INICIA SERVICIO DE IMPRESION
+        await IniciarServicioImpresion();
+
+        // Load fiscal receipts
+        await CargarComprobanteFiscales();
+
+    }
+
+
+    private async Task IniciarServicioImpresion()
+    {
+        try
+        {
+            var socketUrl = SocketUrlService.ObtenerSocketUrl();
+            serverUri = new Uri($"ws://{socketUrl}/servicioimpresion");
+            socketClient = new ClientSocketConnection(clientWebSocket, serverUri);
+
+            var cancellationToken = new CancellationToken();
+
+            await socketClient.ConnectAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await Swal.FireAsync("Aviso", $"NO SE PUDO INICIAR EL SERVICIO DE IMPRESION {ex.Message}", "warning");
+
+        }
+
+    }
+
+
+    private async Task CargarComprobanteFiscales()
+    {
+        try
+        {
+            var response = await TicketService.ObtenerComprobantesFiscales();
+
+            if (response?.Exito == true && response.Data != null)
+            {
+                comprobanteFiscales = response.Data;
+
+                totalPages = (int)Math.Ceiling((double)comprobanteFiscales.Count() / itemsPerPage);
+
+                // Set default comprobante if exists
+                var defaultComprobante = comprobanteFiscales.FirstOrDefault(c => c.ComprobantePorDefecto);
+                selectedComprobante = defaultComprobante;
+
+                if (defaultComprobante != null)
+                {
+                    selectedTipoComprobante = defaultComprobante.Tipo;
+                    selectedDescripcionComprobante = defaultComprobante.Descripcion;
+                    PermiteSeleccion = defaultComprobante.PermiteSeleccion;
+                    // If it doesn't require RNC selection, set empty RNC info
+                    if (!PermiteSeleccion)
+                    {
+                        rncInfo = new RncInfo
+                            {
+                                RazonSocial = "",
+                                Rnc = ""
+                            };
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await Swal.FireAsync("Aviso", $"ERROR AL CARGAR LOS COMPROBANTES FISCALES {ex.Message}", "warning");
+            // Handle error
+        }
+    }
+
+    private IEnumerable<NCFSecuencia> GetPaginatedReceipts()
+    {
+        return comprobanteFiscales?
+            .Skip((currentPage - 1) * itemsPerPage)
+            .Take(itemsPerPage) ?? Enumerable.Empty<NCFSecuencia>();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages) currentPage++;
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1) currentPage--;
+    }
+
+    private async Task SeleccionarComprobanteFiscal(NCFSecuencia comprobante)
+    {
+
+        selectedComprobante = comprobante;
+
+        PermiteSeleccion = comprobante.PermiteSeleccion;
+        selectedTipoComprobante = comprobante.Tipo;
+
+        if (selectedComprobante.TienenVencimiento == 0 ||
+            selectedComprobante.TieneDisponible == 0)
+        {
+            return; 
+        }
+
+        if (comprobante.PermiteSeleccion)
+        {
+            var dialog = DialogService.Show<RNCDialog>("Ingresar RNC");
+            var result = await dialog.Result;
+
+            if (!result.Cancelled && result.Data != null)
+            {
+                //selectedRncInfo = result.Data;
+                rncInfo = (RncInfo)result.Data;
+                // selectedTipoComprobante = comprobante.Tipo;
+                selectedDescripcionComprobante = comprobante.Descripcion;
+            } else
+            {
+               await CargarComprobanteFiscales();
+            }
+        } else
+        {
+             rncInfo = new RncInfo
+             {
+                 RazonSocial = "",
+                 Rnc = ""
+             };
+        }
+    }
+
+}

@@ -1,0 +1,9 @@
+{
+  "ApiUrl": "http://localhost:1018/",
+  "ApiUrlServer": "http://localhost:1020",
+  "Serie": "T",
+  "PosId": "1",
+  "SaleCenterId": "1",
+  "LocationName": "1",
+  "Token": "EF1C9A0E-8218-4A3A-B250-EFA8C4F85C1B"
+}

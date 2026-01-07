@@ -1,0 +1,109 @@
+﻿
+@using LET.AgoraPantallaFormaPago.Models
+@inject ITicketService TicketService
+@inject NavigationManager Navigation
+@inject SweetAlertService Swal
+
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-2 d-flex flex-column align-center">
+    @if (ticket == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Class="mx-auto" />
+    }
+    else
+    {
+        <MudPaper Class="pa-8" Elevation="5" Style="width: 100%; max-width: 600px;">
+            <MudGrid Justify="Justify.Center">
+                <MudItem xs="12" Class="text-center mb-6">
+                    <MudPaper Class="pa-4" Elevation="0" Style="@($"color:white; background:{Colors.Indigo.Darken1};")">
+                        <MudText Typo="Typo.h5">Informacion de la Factura</MudText>
+                    </MudPaper>
+                </MudItem>
+
+                @if (ticket.Customer != null)
+                {
+
+                    <MudItem xs="12" Class="text-center mt-6">
+                        <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                            <MudText Typo="Typo.subtitle1">CODIGO: <strong>@ticket.Customer.CustomerCode</strong></MudText>
+                            <MudText Typo="Typo.subtitle1">NOMBRE: <strong>@ticket.Customer.FiscalName</strong></MudText>
+                          </MudPaper>
+                    </MudItem>
+                }
+
+                <MudItem xs="12" Class="text-center mb-6">
+                     <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                        <MudText Typo="Typo.subtitle1">TOTAL A FACTURAR: <strong>@ticket.Totals.GrossAmount.ToString("C")</strong></MudText>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" Class="text-center mt-8">
+                    <MudButton Variant="Variant.Filled"
+                    Color="Color.Primary"
+                    Size="Size.Large"
+                    OnClick="ContinueToPayment"
+                    Class="mx-auto">
+                        Continuar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+
+    private Ticket? ticket;
+    [Inject] private TicketStateContainer TicketState { get; set; } = null!;
+    
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await TicketService.GetOpenTickets();
+            if (response.Exito && response.Data.Tickets.Any())
+            {
+                ticket = response.Data.Tickets.First();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading ticket: {ex.Message}");
+        }
+    }
+
+
+
+    private async Task ContinueToPayment()
+    {
+        try
+        { 
+            // if (ticket?.Customer != null)
+            // {
+            //     var limiteCredito = await TicketService.ObtenerLimiteCreditoCliente(
+            //         ticket.Customer.CustomerCode,
+            //         ticket.Totals.GrossAmount);
+            //     if (!limiteCredito.Exito  && !limiteCredito.Data)
+            //     {
+            //         await Swal.FireAsync("INFORMACION", limiteCredito.Mensaje, "warning");
+            //         return;
+            //     }               
+            // }
+
+            // Pass the amount to the payment page
+            //Navigation.NavigateTo($"/payment/500.00");
+            // Store the ticket in state container
+            TicketState.CurrentTicket = ticket;
+            Navigation.NavigateTo($"/testpayment");
+            //Navigation.NavigateTo($"/testpayment/{ticket.Totals.GrossAmount}");
+
+          
+        }
+        catch (Exception ex)
+        {
+            await Swal.FireAsync("INFORMACION",$"ERROR AL VALIDAR EL LIMITE DE CREDITO {ex.Message}", "error");
+            
+        }
+    }
+}

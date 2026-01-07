@@ -1,0 +1,172 @@
+﻿@using LET.AgoraPantallaFormaPago.Models
+@using Microsoft.AspNetCore.Components.Web
+@inject ITicketService TicketService
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="rnc"
+        Label="Ingrese RNC"
+        Variant="Variant.Outlined"
+        InputType="InputType.Number"
+        Immediate="true"
+        Class="mb-4"
+        Error="@(!existeRNC)"
+        ErrorText="EL RNC NO EXISTE"
+        OnKeyDown="HandleKeyPress" />
+
+        @if (rncData != null)
+        {
+            <MudPaper Elevation="2" Class="pa-4 mb-4">
+                <MudText Typo="Typo.body1"><strong>RAZON SOCIAL:</strong> @rncData.RazonSocial</MudText><br />
+            </MudPaper>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <MudText Class="mb-4" Color="Color.Error">@errorMessage</MudText>
+        }
+
+        <!-- Virtual Numpad -->
+        <MudGrid>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('7'))">7</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('8'))">8</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('9'))">9</MudButton>
+            </MudItem>
+
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('4'))">4</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('5'))">5</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('6'))">6</MudButton>
+            </MudItem>
+
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('1'))">1</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('2'))">2</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('3'))">3</MudButton>
+            </MudItem>
+
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="@(() => AppendNumber('0'))">0</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height: 55px" OnClick="ClearRnc">C</MudButton>
+            </MudItem>
+            <MudItem xs="4" Class="pa-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" Style="height: 55px" OnClick="SearchRnc">Buscar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit" Disabled="@(!canSubmit)">
+            Aceptar
+        </MudButton>
+    </DialogActions>
+</MudDialog>    
+
+
+@code {
+
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    //[Parameter] public int SelectedReceiptTipo { get; set; }
+
+    private string rnc = "";
+    private string errorMessage = "";
+    private RncDgii? rncData;
+    private bool canSubmit = false;
+    private bool existeRNC = true;
+
+    private void AppendNumber(char number)
+    {
+        if (rnc.Length >= 11) return; // Optional: limit RNC length
+        rnc += number.ToString();
+    }
+
+    private void ClearRnc()
+    {
+        rnc = "";
+        rncData = null;
+        errorMessage = "";
+        canSubmit = false;
+        existeRNC = true;
+    }
+
+
+    private async Task SearchRnc()
+    {
+        if (string.IsNullOrWhiteSpace(rnc))
+        {
+            //errorMessage = "Debe ingresar un RNC";
+            existeRNC = false;
+            return;
+        }
+
+        try
+        {
+            var response = await TicketService.ObtenerRNC(rnc);
+
+            existeRNC = true;
+            if (response?.Exito == true && response.Data != null)
+            {
+                rncData = response.Data;
+                errorMessage = "";
+                canSubmit = true;
+            }
+            else
+            {
+                rncData = null;
+                existeRNC = false;
+                //errorMessage = response?.Mensaje ?? "RNC no encontrado";
+                canSubmit = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al buscar el RNC";
+            canSubmit = false;
+        }
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SearchRnc();
+        }
+        else if (e.Key == "Escape")
+        {
+            Cancel();
+        }
+    }
+
+    private void Submit()
+    {
+        if (rncData != null)
+        {
+            var result = new RncInfo 
+            {
+                //Tipo = SelectedReceiptTipo,
+                Rnc = rncData.rnc,
+                RazonSocial = rncData.RazonSocial
+            };
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,328 @@
+﻿@page "/"
+@using LET.AgoraPantallaFormaPago.Models
+@inject ITicketService TicketService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject PaymentStateContainer PaymentState
+@implements IDisposable
+@inject SweetAlertService Swal
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-2 d-flex flex-column align-center">
+    @if (paymentMethods == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Class="mx-auto" />
+    }
+    else
+    {
+        <MudPaper Class="pa-8" Elevation="5" Style="width: 100%; max-width: 600px;">
+            <MudGrid Justify="Justify.Center">
+                <MudItem xs="12" Class="text-center mb-1">
+                    <MudPaper Class="pa-4" Elevation="0" Style="@($"color:white; background:{Colors.Indigo.Darken1};")">
+                        <MudText Typo="Typo.subtitle1">FORMAS DE PAGO</MudText>                        
+                    </MudPaper>
+                    @if (ticket.Customer != null)
+                    {
+
+                        <MudItem xs="12" Class="text-center mt-1">
+                            <MudPaper Class="pa-4" Style="background:#f0f0f0;">
+                                <MudText Typo="Typo.subtitle1">CODIGO: <strong>@ticket.Customer.CustomerCode</strong></MudText>
+                                <MudText Typo="Typo.subtitle1">NOMBRE: <strong>@ticket.Customer.FiscalName</strong></MudText>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudItem>
+
+
+
+                <MudItem xs="12" Class="text-center mb-6">
+                    <MudGrid>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">PENDIENTE:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@remainingAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">TOTAL:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@totalAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">ENTREGADO:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@paidAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudText Typo="Typo.subtitle1">CAMBIO:</MudText>
+                            <MudText Typo="Typo.subtitle1"><strong>@changeAmount.ToString("#,##0.00")</strong></MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+
+                <MudItem xs="12" Class="text-center mb-6">
+                    <MudGrid>
+                        @foreach (var method in GetPaginatedPaymentMethods())
+                        {
+                            <MudItem xs="4" Class="pa-2">
+                                <MudButton Variant="Variant.Filled"
+                                Color="Color.Primary"
+                                Size="Size.Large"
+                                FullWidth="true"
+                                Disabled="@(remainingAmount <= 0)"
+                                OnClick="@(() => OpenAmountDialog(method))">
+                                    @method.Name
+                                </MudButton>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudItem>
+
+                @if (payments.Any())
+                {
+                    <MudItem xs="12">
+                        <MudTable Items="@payments" Hover="true" Dense="true">
+                            <HeaderContent>
+                                <MudTh>Forma de Pago</MudTh>
+                                <MudTh>Monto</MudTh>
+                                <MudTh>Eliminar</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.PaymentMethod.Name</MudTd>
+                                <MudTd>@context.Amount.ToString("#,##0.00")</MudTd>
+                                <MudTd>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                    Color="Color.Error"
+                                    OnClick="@(() => RemovePayment(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudItem>
+
+                    <!-- Add the Continue button here -->
+                    <MudItem xs="12" Class="text-center mt-2">
+                        <MudButton Variant="Variant.Filled"
+                        Color="Color.Primary"
+                        Class="py-6 px-12"
+                        Disabled="@(remainingAmount != 0)"
+                        OnClick="OnContinue">
+                            CONTINUAR
+                        </MudButton>
+                    </MudItem>
+                }
+
+                @if (totalPages > 1)
+                {
+                    <MudItem xs="12" Class="text-center mt-4">
+                        <MudGrid Justify="Justify.Center" Spacing="3">
+                            <MudItem>
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                                OnClick="PreviousPage"
+                                Disabled="@(currentPage == 1)" />
+                            </MudItem>
+                            <MudItem>
+                                <MudText>Página @currentPage de @totalPages</MudText>
+                            </MudItem>
+                            <MudItem>
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
+                                OnClick="NextPage"
+                                Disabled="@(currentPage == totalPages)" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+
+
+    [Parameter]
+    public decimal Amount { get; set; }
+    [Inject] private TicketStateContainer TicketState { get; set; } = null!;
+    private List<AddPayment> mappedPayments = new();
+    private Ticket ticket;
+    private List<PaymentMethod> paymentMethods;
+    private List<PaymentEntry> payments = new();
+    private int currentPage = 1;
+    private int itemsPerPage = 3;
+    private int totalPages = 1;
+
+    private decimal totalAmount;
+    private decimal paidAmount;
+    private decimal remainingAmount;
+    private decimal changeAmount;
+
+    private void MapPayments()
+    {
+        mappedPayments = payments.Select(payment => new AddPayment
+            {
+                TicketGlobalId = ticket?.GlobalId,
+                PosId = ticket?.Pos?.Id ?? 0,
+                UserId = ticket?.User?.Id ?? 0,
+                Date = payment.Date,
+                PaymentMethodId = payment.PaymentMethod.Id, // Assuming PaymentMethod has an Id property
+                Amount = payment.Amount,
+                PaidAmount = payment.PayAmount,
+                ChangeAmount = payment.ChangeAmount,
+                TipAmount = 0.00m,
+                KeepOpen = false,
+                ExtraInformation = ""
+            }).ToList();
+    }
+
+
+    private void OnContinue()
+    {
+
+
+        MapPayments();
+        PaymentState.SetPayments(mappedPayments, totalAmount, paidAmount, remainingAmount, changeAmount, ticket);
+        Navigation.NavigateTo("/ComprobantesFiscales");
+    }
+
+    private void CalcularTotales(PaymentMethod method = null)
+    {
+        // Reset values
+        paidAmount = 0;
+        changeAmount = 0;
+        remainingAmount = totalAmount;
+
+        // Recalculate everything from scratch
+        foreach (var payment in payments)
+        {
+            paidAmount += payment.Amount;
+        }
+
+        // Calculate change ONLY if the payment method allows it
+        if (method?.GiveChange == true && method?.AllowOverPaid == true)
+        {
+            if (paidAmount > totalAmount)
+            {
+                changeAmount = paidAmount - totalAmount;
+            }
+        }
+
+        // Calculate pending amount
+        remainingAmount = totalAmount - (paidAmount - changeAmount);
+        if (remainingAmount < 0) remainingAmount = 0;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //ticket = TicketState.CurrentTicket;
+
+
+            var response = await TicketService.GetOpenTickets();
+
+            if (response.Exito && response.Data.Tickets.Any())
+            {
+                ticket = response.Data.Tickets.First();
+                totalAmount = ticket.Totals.GrossAmount;              
+            } else
+            {
+                await Swal.FireAsync("INFORMACION", $"NO HAY VENTAS PARA FACTURAR", "warning");
+                return;
+            }
+
+            CalcularTotales(); // Initial calculation
+
+            var paymentMethodsResponse = await TicketService.GetPaymentMethods();
+
+            if (paymentMethodsResponse.Exito && paymentMethodsResponse.Data.PaymentMethods != null)
+            {
+                paymentMethods = paymentMethodsResponse.Data.PaymentMethods
+                    .Where(p => p.IsValidForSale)
+                    .OrderBy(p => p.Priority)
+                    .ToList();
+
+                totalPages = (int)Math.Ceiling((double)paymentMethods.Count / itemsPerPage);
+            }
+        }
+        catch (Exception ex)
+        {
+            await Swal.FireAsync("Error", $"Error loading data: {ex.Message}", "error");
+        }
+
+        //Get ticket from state container
+
+    }
+
+
+    public void Dispose()
+    {
+        // Clean up event subscription
+        TicketState.OnChange -= StateHasChanged;
+    }
+
+    private async Task OpenAmountDialog(PaymentMethod method)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("PaymentMethodName", method.Name);
+        parameters.Add("remainingAmount", remainingAmount.ToString("#0.00"));
+        var options = new DialogOptions 
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            };
+
+        var dialog = DialogService.Show<AmountDialog>($"INGRESE EL MONTO DE: {method.Name}  (Total: {remainingAmount.ToString("#,##0.00")})", parameters, options);
+        var result = await dialog.Result;
+
+        decimal amountResult = Convert.ToDecimal(result.Data);
+
+        if (!result.Cancelled && amountResult is decimal amount && amount > 0)
+        {
+            // Check if payment would exceed remaining amount and method doesn't allow overpayment
+            if (!method.GiveChange && 
+                !method.AllowOverPaid && 
+                amount > remainingAmount)
+            {
+                await Swal.FireAsync("INFORMACION", "NO SE PUEDE PAGAR UNA CANTIDAD SUPERIOR AL TOTAL", "warning");                
+                return;
+            }
+
+            payments.Add(new PaymentEntry
+            {
+
+                PaymentMethod = method,
+                Amount = amount,
+                PayAmount = amount,
+                Date = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.ff"),
+                ChangeAmount = method.GiveChange && method.AllowOverPaid && amount > remainingAmount
+                        ? amount - remainingAmount : 0,
+             });
+  
+             CalcularTotales(method); // recalcular despues de agregar el pago
+        }
+    }
+
+    private IEnumerable<PaymentMethod> GetPaginatedPaymentMethods()
+    {
+        return paymentMethods?
+            .Skip((currentPage - 1) * itemsPerPage)
+            .Take(itemsPerPage) ?? Enumerable.Empty<PaymentMethod>();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+        }
+    }
+
+    private void RemovePayment(PaymentEntry payment)
+    {
+        payments.Remove(payment);
+        CalcularTotales(payment.PaymentMethod); // Recalculate after removing payment
+    }
+}
