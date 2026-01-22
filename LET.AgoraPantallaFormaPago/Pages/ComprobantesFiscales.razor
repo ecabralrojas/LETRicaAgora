@@ -274,7 +274,13 @@
                             {
                                 await Swal.FireAsync("Aviso", $"ERROR AL REGISTRAR LA FACTURA {registrarFactura?.Mensaje}", "warning");
                             }
-                        } 
+                        } else
+                        {
+                            await Swal.FireAsync("Aviso", $"ERROR AL REGISTRAR LA FACTURA {factura?.Mensaje}", "warning");
+                        }
+                    } else
+                    {
+                        await Swal.FireAsync("Aviso", $"ERROR AL PROCESAR PAGO {response?.Mensaje}", "warning");
                     }
                 }
                 else

@@ -57,7 +57,7 @@ namespace LET.Agora.Application.Repositories
                     }
                     else
                     {
-                        response.Mensaje = $"{respuestaAgora.ReasonPhrase}";
+                        response.Mensaje = $"{respuestaAgora.ReasonPhrase} - {jsonString}";
                         response.Exito = false;
                     }
 
@@ -112,9 +112,11 @@ namespace LET.Agora.Application.Repositories
 
                     var response = await client.PostAsync("api/tickets/add-payment", content);
 
+                    string bodyResponse = await response.Content.ReadAsStringAsync();
+
                     if (response.IsSuccessStatusCode)
                     {
-                        string bodyResponse = await response.Content.ReadAsStringAsync();
+                        
                         var ticket = JsonSerializer.Deserialize<Ticket>(bodyResponse);
 
                         if (ticket.Serie != null)
@@ -126,8 +128,8 @@ namespace LET.Agora.Application.Repositories
                     }
                     else
                     {
-                        string bodyResponse = $"{response.ReasonPhrase}";
-                        resp.Mensaje = bodyResponse;
+                        string bodyMessageResponse = $"{response.ReasonPhrase} -  {bodyResponse}";
+                        resp.Mensaje = bodyMessageResponse;
                         resp.Exito = false;
                     }
                 }
